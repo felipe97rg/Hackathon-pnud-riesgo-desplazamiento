@@ -1,0 +1,56 @@
+# ── Confidencialidad (T&C art. 9 y 13.1): los datos del reto NUNCA se versionan ──
+data/reto/*
+data/sinteticos/*
+data/sinteticos_sucios/*
+data/externos/crudos/*
+outputs/entregas/*
+outputs/modelos/*
+outputs/eda/*
+outputs/geovisor/*
+!**/.gitkeep
+
+# Materiales originales del organizador (correo, T&C, diccionario): solo locales
+docs/reto/
+# Carpetas que crean los notebooks al correrlos localmente (datos del reto y entregas)
+datos/
+entregas/
+notebooks/datos/
+notebooks/entregas/
+hackathon_datos.zip
+entregas_ronda*/
+entregas_experimentos/
+notebooks/entregas_experimentos/
+notebooks/entregas_ronda*/
+notebooks/entrega_*.csv
+notebooks/lluvia_chirps_mensual.csv
+cartografia_municipios.geojson
+# Notebook base de los organizadores: trae el enlace a los datos y salidas con datos reales
+notebooks/notebook_base_hackathon.ipynb
+
+# Rasters y descargas pesadas
+*.tif
+*.tiff
+*.nc
+*.zip
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ipynb_checkpoints/
+*.egg-info/
+
+# Entorno y credenciales
+.env
+*.key
+credentials*.json
+
+# Claude Code (la skill del proyecto sí se versiona)
+.claude/settings.local.json
+
+# Sistema / Google Drive
+desktop.ini
+.DS_Store
+Thumbs.db

@@ -1,0 +1,8 @@
+# Pipeline de modelado (Soluciones A y B). Colab ya trae casi todo; faltaría catboost.
+numpy>=1.26
+pandas>=2.1
+scikit-learn>=1.4
+lightgbm>=4.3
+catboost>=1.2
+plotly>=5.20
+pytest>=8.0

@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Geovisor de riesgo</title>
+<style>
+:root {
+  color-scheme: light;
+  --plano: #f9f9f7; --superficie: #fcfcfb; --tinta: #0b0b0b; --tinta-2: #52514e; --muted: #898781;
+  --grilla: #e1e0d9; --eje: #c3c2b7; --borde: rgba(11, 11, 11, .10); --sin-dato: #e4e3dd; --mar: #f1f0ec;
+  --serie: #2a78d6; --banda: rgba(42, 120, 214, .20); --seleccion: #0b0b0b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --plano: #0d0d0d; --superficie: #1a1a19; --tinta: #ffffff; --tinta-2: #c3c2b7; --muted: #898781;
+    --grilla: #2c2c2a; --eje: #383835; --borde: rgba(255, 255, 255, .10); --sin-dato: #2c2c2a; --mar: #121211;
+    --serie: #3987e5; --banda: rgba(57, 135, 229, .28); --seleccion: #ffffff;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --plano: #0d0d0d; --superficie: #1a1a19; --tinta: #ffffff; --tinta-2: #c3c2b7; --muted: #898781;
+  --grilla: #2c2c2a; --eje: #383835; --borde: rgba(255, 255, 255, .10); --sin-dato: #2c2c2a; --mar: #121211;
+  --serie: #3987e5; --banda: rgba(57, 135, 229, .28); --seleccion: #ffffff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--plano); color: var(--tinta); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.contenedor { max-width: 1440px; margin: 0 auto; padding: 16px; }
+header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 8px 16px; margin-bottom: 12px; }
+h1 { font-size: 20px; margin: 0; }
+h2 { font-size: 16px; margin: 0 0 2px; }
+h3 { font-size: 12px; margin: 14px 0 4px; color: var(--tinta-2); font-weight: 600; }
+.sub { color: var(--tinta-2); font-size: 12px; }
+.aviso { display: inline-flex; gap: 6px; align-items: center; background: #fab219; color: #0b0b0b; font-weight: 600; font-size: 12px; padding: 4px 10px; border-radius: 4px; }
+.filtros { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; background: var(--superficie); border: 1px solid var(--borde); border-radius: 10px; padding: 12px 16px; }
+.campo { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--tinta-2); }
+select, input[type="text"] { font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--eje); border-radius: 6px; background: var(--superficie); color: var(--tinta); min-width: 190px; }
+.campo-mes { flex: 1 1 340px; }
+.control-mes { display: flex; align-items: center; gap: 10px; }
+.control-mes input[type="range"] { flex: 1; accent-color: var(--serie); }
+.mes-etiqueta { min-width: 72px; font-weight: 600; font-variant-numeric: tabular-nums; }
+button { font: inherit; font-size: 13px; border: 1px solid var(--eje); background: var(--superficie); color: var(--tinta); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+button:hover { background: var(--plano); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--serie); outline-offset: 1px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin: 12px 0; }
+.kpi, .tarjeta { background: var(--superficie); border: 1px solid var(--borde); border-radius: 10px; }
+.kpi { padding: 12px 16px; }
+.kpi .etiqueta { font-size: 12px; color: var(--tinta-2); }
+.kpi .valor { font-size: 24px; font-weight: 600; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kpi .detalle { font-size: 12px; color: var(--muted); }
+.cuerpo { display: grid; grid-template-columns: minmax(0, 1fr) 390px; gap: 12px; align-items: start; }
+@media (max-width: 980px) { .cuerpo { grid-template-columns: 1fr; } }
+.tarjeta { padding: 14px 16px; position: relative; }
+.mapa-tarjeta { padding: 0; overflow: hidden; height: 74vh; min-height: 480px; }
+@media (max-width: 980px) { .mapa-tarjeta { height: 62vh; min-height: 380px; } }
+#mapa { width: 100%; height: 100%; display: block; background: var(--mar); cursor: grab; touch-action: none; user-select: none; }
+#mapa.arrastrando { cursor: grabbing; }
+.municipio { stroke: var(--superficie); stroke-width: .6; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.municipio:hover { stroke: var(--tinta-2); stroke-width: 1.5; }
+.municipio.atenuado { opacity: .22; }
+.municipio.seleccionado { stroke: var(--seleccion); stroke-width: 2.5; }
+.recuadro { fill: none; stroke: var(--eje); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.recuadro-texto { fill: var(--muted); }
+.zoom { position: absolute; top: 12px; right: 12px; display: flex; flex-direction: column; gap: 4px; }
+.zoom button { width: 34px; height: 34px; padding: 0; font-size: 17px; line-height: 1; }
+.leyenda { position: absolute; left: 12px; bottom: 12px; background: var(--superficie); border: 1px solid var(--borde); border-radius: 8px; padding: 8px 10px; font-size: 11px; color: var(--tinta-2); max-width: calc(100% - 24px); }
+.leyenda .titulo { font-weight: 600; color: var(--tinta); margin-bottom: 6px; }
+.leyenda .clases { display: flex; gap: 2px; flex-wrap: wrap; }
+.leyenda .clase { display: flex; flex-direction: column; gap: 3px; min-width: 46px; font-variant-numeric: tabular-nums; }
+.leyenda .muestra { height: 10px; border-radius: 2px; }
+.leyenda .nota { margin-top: 6px; color: var(--muted); }
+.tooltip { position: absolute; z-index: 5; pointer-events: none; background: var(--superficie); color: var(--tinta); border: 1px solid var(--borde); border-radius: 6px; padding: 6px 8px; font-size: 12px; box-shadow: 0 2px 10px rgba(0, 0, 0, .14); white-space: nowrap; }
+.tooltip .t-valor { font-weight: 600; }
+.panel { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.vacio { color: var(--muted); margin: 6px 0 0; }
+.cifras { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0 2px; }
+.cifra .etiqueta { font-size: 11px; color: var(--tinta-2); }
+.cifra .valor { font-size: 16px; font-weight: 600; }
+.grafico-caja { position: relative; }
+.grafico { width: 100%; height: 124px; display: block; overflow: visible; cursor: pointer; }
+.grafico .rejilla { stroke: var(--grilla); stroke-width: 1; }
+.grafico .base { stroke: var(--eje); stroke-width: 1; }
+.grafico .texto { fill: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.grafico .linea { fill: none; stroke: var(--serie); stroke-width: 2; stroke-linejoin: round; }
+.grafico .banda { fill: var(--banda); }
+.grafico .marcador { stroke: var(--tinta-2); stroke-width: 1; }
+.grafico .punto { fill: var(--serie); stroke: var(--superficie); stroke-width: 2; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { color: var(--tinta-2); font-weight: 600; }
+td, th { padding: 5px 6px; border-bottom: 1px solid var(--grilla); text-align: left; vertical-align: top; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td .depto { color: var(--muted); font-size: 11px; }
+tbody tr { cursor: pointer; }
+tbody tr:hover, tbody tr:focus-visible { background: var(--plano); outline: none; }
+.fila-acciones { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+footer { margin-top: 16px; font-size: 12px; color: var(--tinta-2); }
+footer ul { margin: 6px 0; padding-left: 18px; }
+</style>
+</head>
+<body>
+<div class="contenedor">
+  <header>
+    <div>
+      <h1>Riesgo de desplazamiento por desastres</h1>
+      <div class="sub" id="subtitulo">Predicción municipal mensual · Colombia</div>
+    </div>
+    <span class="aviso" id="aviso-demo" hidden>⚠ DEMO con datos sintéticos: no son predicciones reales</span>
+  </header>
+
+  <section class="filtros" aria-label="Filtros">
+    <label class="campo">Variable del mapa
+      <select id="variable"></select>
+    </label>
+    <div class="campo campo-mes">Mes
+      <div class="control-mes">
+        <button id="reproducir" type="button" aria-label="Reproducir la animación por meses">▶</button>
+        <input id="mes" type="range" min="0" value="0" aria-label="Mes de la predicción">
+        <span class="mes-etiqueta" id="mes-etiqueta"></span>
+      </div>
+    </div>
+    <label class="campo">Departamento
+      <select id="departamento"><option value="">Todo el país</option></select>
+    </label>
+    <label class="campo">Municipio
+      <input id="buscar" type="text" list="lista-municipios" placeholder="Escribe un nombre…" autocomplete="off">
+      <datalist id="lista-municipios"></datalist>
+    </label>
+  </section>
+
+  <section class="kpis" aria-live="polite">
+    <div class="kpi"><div class="etiqueta">Probabilidad media de evento</div><div class="valor" id="kpi-prob">—</div><div class="detalle" id="kpi-prob-det"></div></div>
+    <div class="kpi"><div class="etiqueta">Personas afectadas estimadas</div><div class="valor" id="kpi-pers">—</div><div class="detalle">suma de las estimaciones municipales</div></div>
+    <div class="kpi"><div class="etiqueta">Municipio con mayor probabilidad</div><div class="valor" id="kpi-top">—</div><div class="detalle" id="kpi-top-det"></div></div>
+  </section>
+
+  <main class="cuerpo">
+    <div class="tarjeta mapa-tarjeta" id="mapa-tarjeta">
+      <svg id="mapa" role="img" aria-label="Mapa municipal de Colombia coloreado según la variable seleccionada" preserveAspectRatio="xMidYMid meet"></svg>
+      <div class="zoom">
+        <button type="button" id="zoom-mas" aria-label="Acercar">+</button>
+        <button type="button" id="zoom-menos" aria-label="Alejar">−</button>
+        <button type="button" id="zoom-reset" aria-label="Ver todo el país">⟲</button>
+      </div>
+      <div class="leyenda" id="leyenda"></div>
+      <div class="tooltip" id="tooltip-mapa" hidden></div>
+    </div>
+
+    <aside class="panel">
+      <div class="tarjeta" id="ficha"></div>
+      <div class="tarjeta">
+        <div class="fila-acciones">
+          <h2 id="ranking-titulo">Mayor riesgo</h2>
+          <button type="button" id="descargar">Descargar CSV</button>
+        </div>
+        <div class="sub" id="ranking-sub"></div>
+        <table>
+          <thead><tr><th class="num">#</th><th>Municipio</th><th class="num" id="ranking-col">Valor</th></tr></thead>
+          <tbody id="ranking"></tbody>
+        </table>
+      </div>
+    </aside>
+  </main>
+
+  <footer>
+    <strong>Cómo leer este geovisor</strong>
+    <ul>
+      <li><b>Probabilidad de evento:</b> probabilidad estimada de al menos un evento climático con afectación (personas o viviendas) en el municipio y mes. Sirve sobre todo para ordenar municipios por riesgo.</li>
+      <li><b>Personas afectadas estimadas:</b> la variable objetivo es la suma de personas afectadas reportadas a la UNGRD (el reto la llama "personas desplazadas"). La estimación es conservadora: incluye la probabilidad de que no ocurra nada.</li>
+      <li><b>Intervalo 80 %:</b> rango entre los percentiles 10 y 90; si el riesgo es bajo, el intervalo puede ser [0, 0].</li>
+      <li>Los colores usan las mismas clases para todos los meses, así que los cambios de color entre meses son comparables.</li>
+    </ul>
+    <div id="pie-fuentes"></div>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  const DATOS = /*__DATOS__*/null;
+  const GEO = /*__GEO__*/null;
+  const $ = (s) => document.querySelector(s);
+
+  if (!DATOS || !GEO) {
+    $(".cuerpo").innerHTML = "<p class='vacio'>Plantilla sin datos. Genera el geovisor con: python scripts/generar_geovisor.py</p>";
+    return;
+  }
+
+  // ── Formatos y utilidades ────────────────────────────────────────────────
+  const fPct = new Intl.NumberFormat("es-CO", { style: "percent", maximumFractionDigits: 1 });
+  const fNum = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 1 });
+  const fEnt = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 });
+  const fMes = new Intl.DateTimeFormat("es-CO", { month: "short", year: "numeric", timeZone: "UTC" });
+  const pct = (v) => (v == null ? "—" : fPct.format(v));
+  const num = (v) => (v == null ? "—" : fNum.format(v));
+  const mesTexto = (f) => fMes.format(new Date(f + "-01T00:00:00Z"));
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const NS = "http://www.w3.org/2000/svg";
+  const nodo = (tag, attrs) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); return n; };
+
+  const M = DATOS.municipios;
+  const FECHAS = DATOS.fechas;
+  const CODIGOS = Object.keys(M);
+
+  // ── Variables del mapa ───────────────────────────────────────────────────
+  const VARIABLES = [
+    { id: "p", nombre: "Probabilidad de evento", corto: "Probabilidad", fmt: pct, serie: (m) => m.p },
+    { id: "e", nombre: "Personas afectadas estimadas", corto: "Personas", fmt: num, serie: (m) => m.e },
+    { id: "w", nombre: "Incertidumbre: ancho del intervalo 80 %", corto: "q90 − q10", fmt: num,
+      serie: (m) => m.u.map((u, i) => (u == null || m.l[i] == null ? null : u - m.l[i])) },
+  ];
+  if (DATOS.meta.historico) {
+    VARIABLES.push({ id: "h", nombre: "Tasa histórica de eventos (entrenamiento)", corto: "Tasa histórica", fmt: pct,
+      estatica: true, serie: (m) => FECHAS.map(() => (m.h == null ? null : m.h)) });
+  }
+  const VAR = Object.fromEntries(VARIABLES.map((v) => [v.id, v]));
+  const SERIES = {};
+  for (const v of VARIABLES) { SERIES[v.id] = {}; for (const c of CODIGOS) SERIES[v.id][c] = v.serie(M[c]); }
+
+  // Clases por cuantiles sobre todos los municipios y meses: iguales en toda la animación.
+  function redondear(x) {
+    if (x === 0) return 0;
+    const e = Math.pow(10, Math.floor(Math.log10(Math.abs(x))) - 1);
+    return Math.round(x / e) * e;
+  }
+  function calcularCortes(id) {
+    const v = [];
+    for (const c of CODIGOS) for (const x of SERIES[id][c]) if (x != null && isFinite(x)) v.push(x);
+    v.sort((a, b) => a - b);
+    if (!v.length) return [];
+    const q = (p) => v[Math.min(v.length - 1, Math.floor(p * (v.length - 1)))];
+    const cortes = [];
+    for (const b of [0.3, 0.5, 0.7, 0.85, 0.93, 0.98].map(q).map(redondear)) {
+      if (b > v[0] && (cortes.length === 0 || b > cortes[cortes.length - 1])) cortes.push(b);
+    }
+    return cortes;
+  }
+  const CORTES = Object.fromEntries(VARIABLES.map((v) => [v.id, calcularCortes(v.id)]));
+  const MINIMO = Object.fromEntries(VARIABLES.map((v) => {
+    let m = Infinity;
+    for (const c of CODIGOS) for (const x of SERIES[v.id][c]) if (x != null && x < m) m = x;
+    return [v.id, isFinite(m) ? m : 0];
+  }));
+
+  const RAMPA_CLARO = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"];
+  const RAMPA_OSCURO = ["#184f95", "#1c5cab", "#256abf", "#2a78d6", "#5598e7", "#86b6ef", "#cde2fb"];
+  const preferenciaOscura = window.matchMedia("(prefers-color-scheme: dark)");
+  function rampa() {
+    const tema = document.documentElement.dataset.theme;
+    return (tema ? tema === "dark" : preferenciaOscura.matches) ? RAMPA_OSCURO : RAMPA_CLARO;
+  }
+  function colores(n) {
+    const r = rampa();
+    if (n >= r.length) return r.slice(0, n);
+    return Array.from({ length: n }, (_, i) => r[Math.round((i * (r.length - 1)) / Math.max(1, n - 1))]);
+  }
+  function clase(v, cortes) { let k = 0; while (k < cortes.length && v >= cortes[k]) k++; return k; }
+
+  // ── Estado ───────────────────────────────────────────────────────────────
+  const estado = { variable: "p", mes: 0, depto: "", sel: null };
+
+  // ── Mapa SVG (proyección equirectangular local: Colombia está cerca del ecuador) ──
+  const svg = $("#mapa");
+  let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
+  const poligonos = (g) => (g.type === "Polygon" ? [g.coordinates] : g.coordinates);
+  for (const f of GEO.features) for (const pol of poligonos(f.geometry)) for (const [x, y] of pol[0]) {
+    if (x < minLon) minLon = x; if (x > maxLon) maxLon = x; if (y < minLat) minLat = y; if (y > maxLat) maxLat = y;
+  }
+  const K = 100, kx = Math.cos(((minLat + maxLat) / 2) * Math.PI / 180);
+  const px = (lon) => (lon - minLon) * kx * K;
+  const py = (lat) => (maxLat - lat) * K;
+  const ANCHO = px(maxLon), ALTO = py(minLat);
+
+  const capa = nodo("g", {});
+  svg.appendChild(capa);
+  const PATHS = {}, CAJAS = {}, NOMBRES = {};
+  for (const f of GEO.features) {
+    const c = f.properties.c;
+    let d = "", x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const pol of poligonos(f.geometry)) for (const anillo of pol) {
+      d += "M" + anillo.map(([lon, lat]) => {
+        const x = px(lon), y = py(lat);
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        return x.toFixed(2) + "," + y.toFixed(2);
+      }).join("L") + "Z";
+    }
+    const p = nodo("path", { d, class: "municipio" });
+    p.dataset.c = c;
+    capa.appendChild(p);
+    PATHS[c] = p;
+    CAJAS[c] = [x0, y0, x1, y1];
+    NOMBRES[c] = { n: f.properties.n, d: f.properties.d, inset: !!f.properties.i };
+  }
+  // Recuadro del archipiélago de San Andrés, reubicado para no ensanchar el mapa.
+  const inset = Object.keys(NOMBRES).filter((c) => NOMBRES[c].inset);
+  if (inset.length) {
+    const cajas = inset.map((c) => CAJAS[c]);
+    const [a, b, cc, dd] = [Math.min(...cajas.map((k) => k[0])), Math.min(...cajas.map((k) => k[1])),
+                            Math.max(...cajas.map((k) => k[2])), Math.max(...cajas.map((k) => k[3]))];
+    const m = 18;
+    svg.insertBefore(nodo("rect", { x: a - m, y: b - m, width: cc - a + 2 * m, height: dd - b + 2 * m, class: "recuadro", rx: 4 }), capa);
+    const tam = ANCHO / 45; // en unidades del mapa: legible en la vista nacional
+    const t = nodo("text", { x: a - m, y: dd + m + tam * 1.2, class: "recuadro-texto", "font-size": tam });
+    t.textContent = "San Andrés y Providencia";
+    svg.appendChild(t);
+  }
+
+  let vista = { x: -ANCHO * 0.02, y: -ALTO * 0.02, w: ANCHO * 1.04, h: ALTO * 1.04 };
+  const VISTA_INICIAL = { ...vista };
+  const aplicarVista = () => svg.setAttribute("viewBox", `${vista.x} ${vista.y} ${vista.w} ${vista.h}`);
+  function aCoordenadas(cx, cy) {
+    const pt = svg.createSVGPoint(); pt.x = cx; pt.y = cy;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+  }
+  function zoomEn(p, factor) {
+    const w = Math.min(Math.max(vista.w * factor, ANCHO / 60), ANCHO * 1.5);
+    const r = w / vista.w;
+    vista = { x: p.x - (p.x - vista.x) * r, y: p.y - (p.y - vista.y) * r, w, h: vista.h * r };
+    aplicarVista();
+  }
+  function centroVista() { return { x: vista.x + vista.w / 2, y: vista.y + vista.h / 2 }; }
+  function encuadrar([x0, y0, x1, y1], margen = 0.12) {
+    let w = (x1 - x0) * (1 + 2 * margen), h = (y1 - y0) * (1 + 2 * margen);
+    const aspecto = svg.clientWidth / Math.max(1, svg.clientHeight);
+    if (w / h < aspecto) w = h * aspecto; else h = w / aspecto;
+    const minimo = ANCHO / 40;
+    if (w < minimo) { h *= minimo / w; w = minimo; }
+    vista = { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h };
+    aplicarVista();
+  }
+  function cajaDe(codigos) {
+    const cs = codigos.map((c) => CAJAS[c]).filter(Boolean);
+    return [Math.min(...cs.map((k) => k[0])), Math.min(...cs.map((k) => k[1])),
+            Math.max(...cs.map((k) => k[2])), Math.max(...cs.map((k) => k[3]))];
+  }
+
+  svg.addEventListener("wheel", (e) => { e.preventDefault(); zoomEn(aCoordenadas(e.clientX, e.clientY), Math.exp(e.deltaY * 0.0015)); }, { passive: false });
+  $("#zoom-mas").onclick = () => zoomEn(centroVista(), 1 / 1.6);
+  $("#zoom-menos").onclick = () => zoomEn(centroVista(), 1.6);
+  $("#zoom-reset").onclick = () => { vista = { ...VISTA_INICIAL }; aplicarVista(); };
+
+  const tarjetaMapa = $("#mapa-tarjeta"), tipMapa = $("#tooltip-mapa");
+  let arrastre = null;
+  svg.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    arrastre = { x: e.clientX, y: e.clientY, vista: { ...vista }, escala: svg.getScreenCTM().a, movido: false };
+    svg.setPointerCapture(e.pointerId);
+  });
+  svg.addEventListener("pointermove", (e) => {
+    if (arrastre) {
+      const dx = e.clientX - arrastre.x, dy = e.clientY - arrastre.y;
+      if (!arrastre.movido && Math.hypot(dx, dy) > 4) { arrastre.movido = true; svg.classList.add("arrastrando"); tipMapa.hidden = true; }
+      if (arrastre.movido) {
+        vista = { ...arrastre.vista, x: arrastre.vista.x - dx / arrastre.escala, y: arrastre.vista.y - dy / arrastre.escala };
+        aplicarVista();
+        return;
+      }
+    }
+    const p = e.target.closest ? e.target.closest(".municipio") : null;
+    if (p) mostrarTip(e, p.dataset.c); else tipMapa.hidden = true;
+  });
+  svg.addEventListener("pointerup", (e) => {
+    const fueArrastre = arrastre && arrastre.movido;
+    arrastre = null;
+    svg.classList.remove("arrastrando");
+    if (fueArrastre) return;
+    const bajo = document.elementFromPoint(e.clientX, e.clientY);
+    const p = bajo && bajo.closest ? bajo.closest(".municipio") : null;
+    if (p) seleccionar(p.dataset.c, false);
+  });
+  svg.addEventListener("pointerleave", () => { if (!arrastre) tipMapa.hidden = true; });
+
+  function mostrarTip(e, c) {
+    const v = VAR[estado.variable], s = SERIES[estado.variable][c];
+    const val = s ? s[estado.mes] : null;
+    const nombre = NOMBRES[c] || {};
+    tipMapa.innerHTML = `<div><b>${esc(nombre.n || c)}</b> · ${esc(nombre.d || "")}</div>` +
+      `<div>${esc(v.corto)}: <span class="t-valor">${val == null ? "sin predicción" : v.fmt(val)}</span></div>`;
+    tipMapa.hidden = false;
+    const r = tarjetaMapa.getBoundingClientRect();
+    let x = e.clientX - r.left + 14, y = e.clientY - r.top + 14;
+    if (x + tipMapa.offsetWidth > r.width - 8) x = e.clientX - r.left - tipMapa.offsetWidth - 14;
+    if (y + tipMapa.offsetHeight > r.height - 8) y = e.clientY - r.top - tipMapa.offsetHeight - 14;
+    tipMapa.style.left = x + "px"; tipMapa.style.top = y + "px";
+  }
+
+  // ── Controles ────────────────────────────────────────────────────────────
+  const selVariable = $("#variable"), rango = $("#mes"), selDepto = $("#departamento"), buscar = $("#buscar");
+  selVariable.innerHTML = VARIABLES.map((v) => `<option value="${v.id}">${esc(v.nombre)}</option>`).join("");
+  rango.max = FECHAS.length - 1;
+  const deptos = {};
+  for (const c of Object.keys(NOMBRES)) deptos[c.slice(0, 2)] = NOMBRES[c].d;
+  for (const c of CODIGOS) if (!deptos[c.slice(0, 2)]) deptos[c.slice(0, 2)] = M[c].d || c.slice(0, 2);
+  Object.entries(deptos).sort((a, b) => a[1].localeCompare(b[1], "es")).forEach(([cod, nombre]) => {
+    selDepto.insertAdjacentHTML("beforeend", `<option value="${cod}">${esc(nombre)}</option>`);
+  });
+  const ETIQUETAS = {};
+  $("#lista-municipios").innerHTML = CODIGOS.map((c) => {
+    const etiqueta = `${M[c].n} — ${M[c].d} (${c})`;
+    ETIQUETAS[etiqueta] = c;
+    return `<option value="${esc(etiqueta)}"></option>`;
+  }).join("");
+
+  selVariable.onchange = () => { estado.variable = selVariable.value; actualizar(); };
+  rango.oninput = () => fijarMes(+rango.value);
+  selDepto.onchange = () => {
+    estado.depto = selDepto.value;
+    if (estado.depto) encuadrar(cajaDe(Object.keys(CAJAS).filter((c) => c.startsWith(estado.depto) && !NOMBRES[c].inset)) );
+    else { vista = { ...VISTA_INICIAL }; aplicarVista(); }
+    actualizar();
+  };
+  buscar.onchange = () => { const c = ETIQUETAS[buscar.value]; if (c) { seleccionar(c, true); buscar.select(); } };
+
+  let reloj = null;
+  const botonPlay = $("#reproducir");
+  function detener() { clearInterval(reloj); reloj = null; botonPlay.textContent = "▶"; botonPlay.setAttribute("aria-label", "Reproducir la animación por meses"); }
+  botonPlay.onclick = () => {
+    if (reloj) { detener(); return; }
+    if (estado.mes >= FECHAS.length - 1) fijarMes(0);
+    botonPlay.textContent = "❚❚"; botonPlay.setAttribute("aria-label", "Pausar la animación");
+    reloj = setInterval(() => { if (estado.mes >= FECHAS.length - 1) detener(); else fijarMes(estado.mes + 1); }, 750);
+  };
+
+  function fijarMes(i) { estado.mes = i; rango.value = i; actualizar(); }
+
+  function seleccionar(c, centrar) {
+    if (estado.sel && PATHS[estado.sel]) PATHS[estado.sel].classList.remove("seleccionado");
+    estado.sel = c;
+    const p = PATHS[c];
+    if (p) {
+      p.classList.add("seleccionado");
+      capa.appendChild(p); // al frente, para que el borde no quede tapado
+      if (centrar) encuadrar(CAJAS[c], 2.5);
+    }
+    pintarFicha();
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────
+  const filtrados = () => CODIGOS.filter((c) => !estado.depto || c.startsWith(estado.depto));
+
+  function actualizar() {
+    $("#mes-etiqueta").textContent = mesTexto(FECHAS[estado.mes]);
+    const v = VAR[estado.variable], cortes = CORTES[v.id], paleta = colores(cortes.length + 1);
+    for (const c in PATHS) {
+      const s = SERIES[v.id][c];
+      const val = s ? s[estado.mes] : null;
+      PATHS[c].style.fill = val == null ? "var(--sin-dato)" : paleta[clase(val, cortes)];
+      PATHS[c].classList.toggle("atenuado", !!estado.depto && !c.startsWith(estado.depto));
+    }
+    pintarLeyenda(v, cortes, paleta);
+    pintarKpis();
+    pintarRanking();
+    pintarFicha();
+  }
+
+  function pintarLeyenda(v, cortes, paleta) {
+    const limites = [MINIMO[v.id], ...cortes];
+    const clases = paleta.map((col, i) => {
+      const desde = v.fmt(limites[i]);
+      const texto = i === paleta.length - 1 ? `≥ ${desde}` : desde;
+      const titulo = i === paleta.length - 1 ? `${desde} o más` : `${desde} a ${v.fmt(limites[i + 1])}`;
+      return `<div class="clase" title="${esc(titulo)}"><div class="muestra" style="background:${col}"></div><span>${esc(texto)}</span></div>`;
+    }).join("");
+    $("#leyenda").innerHTML = `<div class="titulo">${esc(v.nombre)}</div><div class="clases">${clases}` +
+      `<div class="clase" title="Sin predicción"><div class="muestra" style="background:var(--sin-dato)"></div><span>sin dato</span></div></div>` +
+      `<div class="nota">${v.estatica ? "Variable fija (no cambia por mes)." : "Mismas clases para todos los meses."}</div>`;
+  }
+
+  function pintarKpis() {
+    const t = estado.mes, cs = filtrados();
+    let suma = 0, n = 0, pers = 0, top = null;
+    for (const c of cs) {
+      const p = M[c].p[t], e = M[c].e[t];
+      if (p != null) { suma += p; n++; if (!top || p > M[top].p[t]) top = c; }
+      if (e != null) pers += e;
+    }
+    $("#kpi-prob").textContent = n ? pct(suma / n) : "—";
+    $("#kpi-prob-det").textContent = `${fEnt.format(n)} municipios · ${estado.depto ? deptos[estado.depto] : "todo el país"}`;
+    $("#kpi-pers").textContent = fEnt.format(pers);
+    $("#kpi-top").textContent = top ? M[top].n : "—";
+    $("#kpi-top-det").textContent = top ? `${M[top].d} · ${pct(M[top].p[t])}` : "";
+  }
+
+  function pintarRanking() {
+    const v = VAR[estado.variable], t = estado.mes, s = SERIES[v.id];
+    const filas = filtrados().map((c) => [c, s[c][t]]).filter(([, x]) => x != null)
+      .sort((a, b) => b[1] - a[1]).slice(0, 15);
+    $("#ranking-titulo").textContent = "Mayor riesgo";
+    $("#ranking-sub").textContent = `${v.nombre} · ${mesTexto(FECHAS[t])} · ${estado.depto ? deptos[estado.depto] : "todo el país"}`;
+    $("#ranking-col").textContent = v.corto;
+    $("#ranking").innerHTML = filas.map(([c, x], i) =>
+      `<tr data-c="${c}" tabindex="0"><td class="num">${i + 1}</td><td>${esc(M[c].n)}<div class="depto">${esc(M[c].d)}</div></td><td class="num">${v.fmt(x)}</td></tr>`).join("") ||
+      `<tr><td colspan="3" class="vacio">Sin datos para este filtro.</td></tr>`;
+  }
+  $("#ranking").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-c]"); if (tr) seleccionar(tr.dataset.c, true); });
+  $("#ranking").addEventListener("keydown", (e) => { const tr = e.target.closest("tr[data-c]"); if (tr && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); seleccionar(tr.dataset.c, true); } });
+
+  function pintarFicha() {
+    const c = estado.sel, caja = $("#ficha");
+    if (!c || !M[c]) {
+      caja.innerHTML = `<h2>Ficha municipal</h2><p class="vacio">Haz clic en un municipio del mapa, en el ranking o búscalo por nombre.</p>`;
+      return;
+    }
+    const m = M[c], t = estado.mes;
+    caja.innerHTML = `<h2>${esc(m.n)}</h2><div class="sub">${esc(m.d)} · DIVIPOLA ${c} · ${mesTexto(FECHAS[t])}</div>
+      <div class="cifras">
+        <div class="cifra"><div class="etiqueta">Probabilidad</div><div class="valor">${pct(m.p[t])}</div></div>
+        <div class="cifra"><div class="etiqueta">Personas estimadas</div><div class="valor">${num(m.e[t])}</div></div>
+        <div class="cifra"><div class="etiqueta">Intervalo 80 %</div><div class="valor">${num(m.l[t])}–${num(m.u[t])}</div></div>
+      </div>
+      ${m.h != null ? `<div class="sub">Tasa histórica de eventos (entrenamiento): ${pct(m.h)}</div>` : ""}
+      <h3>Probabilidad de evento por mes</h3>
+      <div class="grafico-caja"><svg class="grafico" id="g-prob" aria-label="Serie mensual de probabilidad"></svg><div class="tooltip" hidden></div></div>
+      <h3>Personas afectadas estimadas · banda: intervalo 80 %</h3>
+      <div class="grafico-caja"><svg class="grafico" id="g-pers" aria-label="Serie mensual de personas estimadas con intervalo"></svg><div class="tooltip" hidden></div></div>`;
+    grafico($("#g-prob"), { linea: m.p, fmt: pct, ejeFmt: pct });
+    grafico($("#g-pers"), { linea: m.e, inf: m.l, sup: m.u, fmt: num, ejeFmt: (v) => fEnt.format(v) });
+  }
+
+  // Gráfico de línea (y banda opcional) en SVG, con cruz y tooltip al pasar el cursor.
+  function grafico(el, o) {
+    const W = Math.max(260, el.clientWidth || 340), H = 124, mi = 44, md = 10, ms = 8, mb = 20;
+    el.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    const n = FECHAS.length;
+    const vals = o.linea.concat(o.sup || []).filter((x) => x != null);
+    const maximo = Math.max(...vals, 1e-9) * 1.1;
+    const X = (i) => mi + (i * (W - mi - md)) / Math.max(1, n - 1);
+    const Y = (v) => H - mb - (v / maximo) * (H - mb - ms);
+    for (let k = 0; k <= 2; k++) {
+      const v = (maximo / 1.1) * (k / 2), y = Y(v);
+      el.appendChild(nodo("line", { x1: mi, x2: W - md, y1: y, y2: y, class: k ? "rejilla" : "base" }));
+      const tx = nodo("text", { x: mi - 6, y: y + 3, "text-anchor": "end", class: "texto" }); tx.textContent = o.ejeFmt(v); el.appendChild(tx);
+    }
+    for (const i of [0, Math.floor((n - 1) / 2), n - 1]) {
+      const tx = nodo("text", { x: X(i), y: H - 5, "text-anchor": i === 0 ? "start" : i === n - 1 ? "end" : "middle", class: "texto" });
+      tx.textContent = mesTexto(FECHAS[i]); el.appendChild(tx);
+    }
+    if (o.inf && o.sup) {
+      let arriba = "", abajo = "";
+      for (let i = 0; i < n; i++) if (o.sup[i] != null) arriba += (arriba ? "L" : "M") + X(i) + "," + Y(o.sup[i]);
+      for (let i = n - 1; i >= 0; i--) if (o.inf[i] != null) abajo += "L" + X(i) + "," + Y(o.inf[i]);
+      if (arriba) el.appendChild(nodo("path", { d: arriba + abajo + "Z", class: "banda" }));
+    }
+    let d = "";
+    for (let i = 0; i < n; i++) if (o.linea[i] != null) d += (d ? "L" : "M") + X(i).toFixed(1) + "," + Y(o.linea[i]).toFixed(1);
+    el.appendChild(nodo("path", { d, class: "linea" }));
+    const t = estado.mes;
+    el.appendChild(nodo("line", { x1: X(t), x2: X(t), y1: ms, y2: H - mb, class: "marcador" }));
+    if (o.linea[t] != null) el.appendChild(nodo("circle", { cx: X(t), cy: Y(o.linea[t]), r: 4, class: "punto" }));
+
+    const tip = el.parentElement.querySelector(".tooltip");
+    const cruz = nodo("line", { y1: ms, y2: H - mb, class: "marcador", visibility: "hidden" });
+    el.appendChild(cruz);
+    const indice = (e) => {
+      const p = el.createSVGPoint(); p.x = e.clientX; p.y = e.clientY;
+      const x = p.matrixTransform(el.getScreenCTM().inverse()).x;
+      return Math.min(n - 1, Math.max(0, Math.round(((x - mi) / (W - mi - md)) * (n - 1))));
+    };
+    el.onpointermove = (e) => {
+      const i = indice(e);
+      cruz.setAttribute("x1", X(i)); cruz.setAttribute("x2", X(i)); cruz.setAttribute("visibility", "visible");
+      const banda = o.inf ? `<div>Intervalo: ${num(o.inf[i])}–${num(o.sup[i])}</div>` : "";
+      tip.innerHTML = `<div><b>${mesTexto(FECHAS[i])}</b></div><div class="t-valor">${o.fmt(o.linea[i])}</div>${banda}`;
+      tip.hidden = false;
+      const r = el.getBoundingClientRect();
+      let left = e.clientX - r.left + 12;
+      if (left + tip.offsetWidth > r.width) left = e.clientX - r.left - tip.offsetWidth - 12;
+      tip.style.left = left + "px"; tip.style.top = "0px";
+    };
+    el.onpointerleave = () => { cruz.setAttribute("visibility", "hidden"); tip.hidden = true; };
+    el.onclick = (e) => fijarMes(indice(e));
+  }
+
+  // ── Descarga del mes visible ─────────────────────────────────────────────
+  $("#descargar").onclick = () => {
+    const t = estado.mes;
+    const filas = [["DIVIPOLA", "municipio", "departamento", "fecha", "prob_evento", "personas_desplazadas_estimadas",
+                    "personas_desplazadas_q10", "personas_desplazadas_q90"]];
+    for (const c of filtrados()) { const m = M[c]; filas.push([c, m.n, m.d, FECHAS[t] + "-01", m.p[t], m.e[t], m.l[t], m.u[t]]); }
+    const celda = (x) => (x == null ? "" : /[",\n;]/.test(String(x)) ? `"${String(x).replace(/"/g, '""')}"` : String(x));
+    const csv = filas.map((r) => r.map(celda).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = `riesgo_${FECHAS[t]}${estado.depto ? "_" + estado.depto : ""}.csv`;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  };
+
+  // ── Arranque ─────────────────────────────────────────────────────────────
+  const meta = DATOS.meta;
+  $("#subtitulo").textContent = `Predicción municipal mensual · ${mesTexto(FECHAS[0])} a ${mesTexto(FECHAS[FECHAS.length - 1])}` +
+    (meta.modelo ? ` · ${meta.modelo}` : "") + (meta.generado ? ` · generado ${meta.generado}` : "");
+  $("#aviso-demo").hidden = !meta.demo;
+  $("#pie-fuentes").innerHTML = `Fuentes: ${esc(meta.fuentes || "")}. ${meta.historico ? "Incluye información derivada de los datos del reto: uso interno, no publicar." : ""}`;
+  document.title = meta.titulo || document.title;
+  aplicarVista();
+  actualizar();
+  preferenciaOscura.addEventListener("change", actualizar);
+  let espera;
+  window.addEventListener("resize", () => { clearTimeout(espera); espera = setTimeout(pintarFicha, 150); });
+})();
+</script>
+</body>
+</html>

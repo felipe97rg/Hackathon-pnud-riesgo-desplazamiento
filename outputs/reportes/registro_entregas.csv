@@ -1,0 +1,3 @@
+fecha_hora,entrega,variante,archivo,puntaje_validacion,auc_tabla_vivo,rmse_log_tabla_vivo,winkler_tabla_vivo,notas
+2026-10-06,1,V1_early_stopping,"entrega_AICOLOMBIA.csv (notebook AICOLOMBIA, versión 1)",20.064,0.759,1.172,2.7,Hora no registrada
+2026-10-06 14:4x (aprox.),2,E10S_LL,"entrega_AICOLOMBIA.csv (notebook_entrega_E10S_LL_AICOLOMBIA, corrida en Colab)",25.56,0.78,1.157,2.57,"Entrega final elegida. Lluvia CHIRPS 2018-01→2025-12 + cartografía UPRA. V1 en vivo: AUC 0.759, RMSE 1.172, Winkler 2.70"
